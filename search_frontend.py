@@ -167,15 +167,21 @@ def score_anchor(tokens):
 def load_pagerank():
     with open("pagerank.pkl", "rb") as f:
         return pickle.load(f)
-
-pagerank = load_pagerank()
-
+def load_pageviews():
+    """
+    Loads August 2021 pageviews.
+    Returns dict[int, int]: wiki_id -> views
+    """
+    with open("pageviews.pkl", "rb") as f:
+        return pickle.load(f)
 
 tokenize = build_tokenizer()
 body_index = load_body_index()
 doc_titles = load_doc_titles()
 title_index = load_title_index()
 anchor_index = load_anchor_index()
+pagerank = load_pagerank()
+pageviews = load_pageviews()
 class MyFlaskApp(Flask):
     def run(self, host=None, port=None, debug=None, **options):
         super(MyFlaskApp, self).run(host=host, port=port, debug=debug, **options)
@@ -444,7 +450,7 @@ def get_pageview():
     if len(wiki_ids) == 0:
       return jsonify(res)
     # BEGIN SOLUTION
-
+    res = [int(pageviews.get(doc_id, 0)) for doc_id in wiki_ids]
     # END SOLUTION
     return jsonify(res)
 
