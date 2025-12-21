@@ -164,6 +164,12 @@ def score_anchor(tokens):
         ):
             scores[doc_id] += tf
     return scores
+def load_pagerank():
+    with open("pagerank.pkl", "rb") as f:
+        return pickle.load(f)
+
+pagerank = load_pagerank()
+
 
 tokenize = build_tokenizer()
 body_index = load_body_index()
@@ -411,7 +417,7 @@ def get_pagerank():
     if len(wiki_ids) == 0:
       return jsonify(res)
     # BEGIN SOLUTION
-
+    res = [pagerank.get(doc_id, 0.0) for doc_id in wiki_ids]
     # END SOLUTION
     return jsonify(res)
 
