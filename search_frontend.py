@@ -96,6 +96,21 @@ def load_body_index():
     )
 
     return body_index
+def load_title_index():
+    """
+    Loads the title inverted index from disk / GCP.
+    Returns an InvertedIndex object.
+    """
+    BASE_DIR = 'title_index'     # folder that contains title index files
+    INDEX_NAME = 'index'
+    BUCKET_NAME = None
+
+    return InvertedIndex.read_index(
+        base_dir=BASE_DIR,
+        name=INDEX_NAME,
+        bucket_name=BUCKET_NAME
+    )
+
 def load_doc_titles():
     """
     Loads wiki_id -> title mapping from disk / GCP.
@@ -110,6 +125,7 @@ def load_doc_titles():
 tokenize = build_tokenizer()
 body_index = load_body_index()
 doc_titles = load_doc_titles()
+title_index = load_title_index()
 
 class MyFlaskApp(Flask):
     def run(self, host=None, port=None, debug=None, **options):
@@ -214,7 +230,32 @@ def search_title():
     if len(query) == 0:
       return jsonify(res)
     # BEGIN SOLUTION
+    tokens = set(tokenize(query))
+    if not tokens:
+        return jsonify(res)
+    scores = defaultdict(int)
+    for term in tokens:
+        posting_list = title_index.read_a_posting_list(
+            base_dir="title_index",
+            w=term,
+            bucket_name=None
+        )
+        for doc_id, tf in posting_list:
+            scores[doc_id] += 1
 
+    if not scores:
+        return jsonify(res)
+
+    ranked_docs = sorted(
+        scores.items(),
+        key=lambda x: x[1],
+        reverse=True
+    )
+
+    res = [
+        (doc_id, doc_titles.get(doc_id, ""))
+        for doc_id, score in ranked_docs
+    ]
     # END SOLUTION
     return jsonify(res)
 
