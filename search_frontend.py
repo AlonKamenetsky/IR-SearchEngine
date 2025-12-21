@@ -1,4 +1,115 @@
 from flask import Flask, request, jsonify
+import re
+from nltk.corpus import stopwords
+from inverted_index_gcp import InvertedIndex
+from collections import defaultdict, Counter
+import math
+import pickle
+
+def build_tokenizer():
+    english_stopwords = frozenset(stopwords.words('english'))
+
+    corpus_stopwords = {
+        "category", "references", "also", "external", "links",
+        "may", "first", "see", "history", "people", "one", "two",
+        "part", "thumb", "including", "second", "following",
+        "many", "however", "would", "became"
+    }
+
+    all_stopwords = english_stopwords.union(corpus_stopwords)
+
+    RE_WORD = re.compile(r"""[\#\@\w](['\-]?\w){2,24}""", re.UNICODE)
+
+    def tokenize(text):
+        tokens = []
+        for match in RE_WORD.finditer(text.lower()):
+            token = match.group()
+            if token not in all_stopwords:
+                tokens.append(token)
+        return tokens
+
+    return tokenize
+
+def tfidf_cosine_search_body(tokens, body_index, base_dir='body_index'):
+    """
+    Compute TF-IDF cosine similarity scores for body index.
+    Returns a dict: doc_id -> score
+    """
+
+    # ---- IDF helper ----
+    N = sum(body_index.df.values())  # acceptable corpus size approximation
+
+    def idf(term):
+        df = body_index.df.get(term, 0)
+        if df == 0:
+            return 0.0
+        return math.log(N / df)
+
+    # ---- build query vector ----
+    q_tf = Counter(tokens)
+    q_vec = {term: tf * idf(term) for term, tf in q_tf.items()}
+
+    q_norm = math.sqrt(sum(v * v for v in q_vec.values()))
+    if q_norm == 0:
+        return {}
+
+    # ---- build document vectors ----
+    doc_vectors = defaultdict(dict)
+
+    for term, q_weight in q_vec.items():
+        posting_list = body_index.read_a_posting_list(
+            base_dir=base_dir,
+            w=term,
+            bucket_name=None
+        )
+        term_idf = idf(term)
+
+        for doc_id, tf in posting_list:
+            doc_vectors[doc_id][term] = tf * term_idf
+
+    # ---- cosine similarity ----
+    scores = {}
+
+    for doc_id, d_vec in doc_vectors.items():
+        dot = sum(q_vec[t] * d_vec.get(t, 0) for t in q_vec)
+        d_norm = math.sqrt(sum(v * v for v in d_vec.values()))
+        if d_norm > 0:
+            scores[doc_id] = dot / (q_norm * d_norm)
+
+    return scores
+
+
+def load_body_index():
+    """
+    Loads the body inverted index from disk / GCP.
+    Returns an InvertedIndex object.
+    """
+
+    BASE_DIR = 'body_index'          # directory where index files are stored
+    INDEX_NAME = 'index'             # index.pkl name without .pkl
+    BUCKET_NAME = None               # or 'your-bucket-name' if using GCP
+
+    body_index = InvertedIndex.read_index(
+        base_dir=BASE_DIR,
+        name=INDEX_NAME,
+        bucket_name=BUCKET_NAME
+    )
+
+    return body_index
+def load_doc_titles():
+    """
+    Loads wiki_id -> title mapping from disk / GCP.
+    Returns a dict[int, str].
+    """
+    TITLES_PATH = "doc_titles.pkl"   # adjust if name/path is different
+
+    with open(TITLES_PATH, "rb") as f:
+        doc_titles = pickle.load(f)
+
+    return doc_titles
+tokenize = build_tokenizer()
+body_index = load_body_index()
+doc_titles = load_doc_titles()
 
 class MyFlaskApp(Flask):
     def run(self, host=None, port=None, debug=None, **options):
@@ -52,10 +163,28 @@ def search_body():
     '''
     res = []
     query = request.args.get('query', '')
-    if len(query) == 0:
+    if (len(query) ==
+            0):
       return jsonify(res)
     # BEGIN SOLUTION
+    tokens = tokenize(query)
+    if not tokens:
+        return jsonify(res)
+    scores = tfidf_cosine_search_body(tokens, body_index)
+    if not scores:
+        return jsonify(res)
 
+    ranked_docs = sorted(
+        scores.items(),
+        key=lambda x: x[1],
+        reverse=True
+    )[:100]
+
+    res = [
+        (doc_id, doc_titles.get(doc_id, ""))
+        for doc_id, score in ranked_docs
+        if score > 0
+    ]
     # END SOLUTION
     return jsonify(res)
 
