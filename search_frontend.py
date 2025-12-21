@@ -6,6 +6,8 @@ from collections import defaultdict, Counter
 import math
 import pickle
 
+
+
 def build_tokenizer():
     english_stopwords = frozenset(stopwords.words('english'))
 
@@ -110,6 +112,18 @@ def load_title_index():
         name=INDEX_NAME,
         bucket_name=BUCKET_NAME
     )
+def load_anchor_index():
+    BASE_DIR = 'anchor_index'
+    INDEX_NAME = 'index'
+    BUCKET_NAME = None
+
+    return InvertedIndex.read_index(
+        base_dir=BASE_DIR,
+        name=INDEX_NAME,
+        bucket_name=BUCKET_NAME
+    )
+
+
 
 def load_doc_titles():
     """
@@ -122,11 +136,40 @@ def load_doc_titles():
         doc_titles = pickle.load(f)
 
     return doc_titles
+def score_body(tokens):
+    scores = defaultdict(float)
+    for term in tokens:
+        for doc_id, tf in body_index.read_a_posting_list(
+            base_dir='body_index', w=term, bucket_name=None
+        ):
+            scores[doc_id] += tf
+    return scores
+
+
+def score_title(tokens):
+    scores = defaultdict(float)
+    for term in set(tokens):
+        for doc_id, tf in title_index.read_a_posting_list(
+            base_dir='title_index', w=term, bucket_name=None
+        ):
+            scores[doc_id] += 1
+    return scores
+
+
+def score_anchor(tokens):
+    scores = defaultdict(float)
+    for term in tokens:
+        for doc_id, tf in anchor_index.read_a_posting_list(
+            base_dir='anchor_index', w=term, bucket_name=None
+        ):
+            scores[doc_id] += tf
+    return scores
+
 tokenize = build_tokenizer()
 body_index = load_body_index()
 doc_titles = load_doc_titles()
 title_index = load_title_index()
-
+anchor_index = load_anchor_index()
 class MyFlaskApp(Flask):
     def run(self, host=None, port=None, debug=None, **options):
         super(MyFlaskApp, self).run(host=host, port=port, debug=debug, **options)
@@ -157,7 +200,38 @@ def search():
     if len(query) == 0:
       return jsonify(res)
     # BEGIN SOLUTION
+    tokens = tokenize(query)
+    if not tokens:
+        return jsonify(res)
 
+    body_scores = score_body(tokens)
+    title_scores = score_title(tokens)
+    anchor_scores = score_anchor(tokens)
+
+    final_scores = defaultdict(float)
+
+    for doc_id, score in body_scores.items():
+        final_scores[doc_id] += 1.0 * score
+
+    for doc_id, score in title_scores.items():
+        final_scores[doc_id] += 2.0 * score
+
+    for doc_id, score in anchor_scores.items():
+        final_scores[doc_id] += 1.5 * score
+
+    if not final_scores:
+        return jsonify(res)
+
+    ranked_docs = sorted(
+        final_scores.items(),
+        key=lambda x: x[1],
+        reverse=True
+    )[:100]
+
+    res = [
+        (doc_id, doc_titles.get(doc_id, ""))
+        for doc_id, score in ranked_docs
+    ]
     # END SOLUTION
     return jsonify(res)
 
@@ -285,7 +359,34 @@ def search_anchor():
     if len(query) == 0:
       return jsonify(res)
     # BEGIN SOLUTION
-    
+    tokens = tokenize(query)
+    if not tokens:
+        return jsonify(res)
+
+    scores = defaultdict(int)
+
+    for term in tokens:
+        posting_list = anchor_index.read_a_posting_list(
+            base_dir='anchor_index',
+            w=term,
+            bucket_name=None
+        )
+        for doc_id, tf in posting_list:
+            scores[doc_id] += tf  # COUNT occurrences
+
+    if not scores:
+        return jsonify(res)
+
+    ranked_docs = sorted(
+        scores.items(),
+        key=lambda x: x[1],
+        reverse=True
+    )
+
+    res = [
+        (doc_id, doc_titles.get(doc_id, ""))
+        for doc_id, score in ranked_docs
+    ]
     # END SOLUTION
     return jsonify(res)
 
