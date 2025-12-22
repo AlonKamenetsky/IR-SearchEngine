@@ -136,34 +136,7 @@ def load_doc_titles():
         doc_titles = pickle.load(f)
 
     return doc_titles
-def score_body(tokens):
-    scores = defaultdict(float)
-    for term in tokens:
-        for doc_id, tf in body_index.read_a_posting_list(
-            base_dir='body_index', w=term, bucket_name=None
-        ):
-            scores[doc_id] += tf
-    return scores
 
-
-def score_title(tokens):
-    scores = defaultdict(float)
-    for term in set(tokens):
-        for doc_id, tf in title_index.read_a_posting_list(
-            base_dir='title_index', w=term, bucket_name=None
-        ):
-            scores[doc_id] += 1
-    return scores
-
-
-def score_anchor(tokens):
-    scores = defaultdict(float)
-    for term in tokens:
-        for doc_id, tf in anchor_index.read_a_posting_list(
-            base_dir='anchor_index', w=term, bucket_name=None
-        ):
-            scores[doc_id] += tf
-    return scores
 def load_pagerank():
     with open("pagerank.pkl", "rb") as f:
         return pickle.load(f)
@@ -216,26 +189,14 @@ def search():
     if not tokens:
         return jsonify(res)
 
-    body_scores = score_body(tokens)
-    title_scores = score_title(tokens)
-    anchor_scores = score_anchor(tokens)
+    # HW2 core: TF-IDF + cosine similarity on body
+    scores = tfidf_cosine_search_body(tokens, body_index)
 
-    final_scores = defaultdict(float)
-
-    for doc_id, score in body_scores.items():
-        final_scores[doc_id] += 1.0 * score
-
-    for doc_id, score in title_scores.items():
-        final_scores[doc_id] += 2.0 * score
-
-    for doc_id, score in anchor_scores.items():
-        final_scores[doc_id] += 1.5 * score
-
-    if not final_scores:
+    if not scores:
         return jsonify(res)
 
     ranked_docs = sorted(
-        final_scores.items(),
+        scores.items(),
         key=lambda x: x[1],
         reverse=True
     )[:100]
@@ -243,7 +204,9 @@ def search():
     res = [
         (doc_id, doc_titles.get(doc_id, ""))
         for doc_id, score in ranked_docs
+        if score > 0
     ]
+
     # END SOLUTION
     return jsonify(res)
 
