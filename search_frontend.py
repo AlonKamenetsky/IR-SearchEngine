@@ -10,7 +10,7 @@ from google.cloud import storage
 # =========================
 PROJECT_ID = "assignment-3-480509"
 BUCKET_NAME = "unique_bucket_lidor"
-INDEX_NAME = "index"        # index.pkl
+INDEX_NAME = "index"
 BASE_DIR = "postings_gcp"
 INDEX_PATH = "postings_gcp/index.pkl"
 

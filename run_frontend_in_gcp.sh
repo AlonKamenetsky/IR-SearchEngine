@@ -18,7 +18,6 @@ gcloud config list
 gcloud compute addresses create $IP_NAME --project=$PROJECT_NAME --region=$REGION
 gcloud compute addresses list
 # note the IP address printed above, that's your extrenal IP address.
-34.28.62.79
 INSTANCE_IP=$(gcloud compute addresses describe $IP_NAME --region=$REGION --format="get(address)")
 
 # 2. Create Firewall rule to allow traffic to port 8080 on the instance
