@@ -1,4 +1,67 @@
 from flask import Flask, request, jsonify
+import math
+import pickle
+import re
+from collections import defaultdict
+from google.cloud import storage
+
+# =========================
+# GCP + INDEX CONFIG
+# =========================
+PROJECT_ID = "assignment-3-480509"
+BUCKET_NAME = "unique_bucket_lidor"
+INDEX_NAME = "index"        # index.pkl
+BASE_DIR = "postings_gcp"
+INDEX_PATH = "postings_gcp/index.pkl"
+
+# BM25 parameters
+k1 = 1.5
+b = 0.75
+
+# =========================
+# LOAD INDEX ONCE
+# =========================
+storage_client = storage.Client(PROJECT_ID)
+bucket = storage_client.bucket(BUCKET_NAME)
+
+with bucket.blob(INDEX_PATH).open("rb") as f:
+    index = pickle.load(f)
+
+# total number of documents (simple fallback)
+N = sum(index.df.values())
+
+# =========================
+# TOKENIZER
+# =========================
+def tokenize(text):
+    return re.findall(r"\w+", text.lower())
+
+# =========================
+# BM25 SCORING
+# =========================
+def bm25_score(query_tokens):
+    scores = defaultdict(float)
+
+    for term in query_tokens:
+        if term not in index.df:
+            continue
+
+        df = index.df[term]
+        idf = math.log(1 + (N - df + 0.5) / (df + 0.5))
+
+        posting_list = index.read_a_posting_list(
+            base_dir=BASE_DIR,
+            w=term,
+            bucket_name=BUCKET_NAME
+        )
+
+        for doc_id, tf in posting_list:
+            # simplified BM25 (no document lengths)
+            denom = tf + k1
+            score = idf * (tf * (k1 + 1)) / denom
+            scores[doc_id] += score
+
+    return scores
 
 class MyFlaskApp(Flask):
     def run(self, host=None, port=None, debug=None, **options):
@@ -6,6 +69,7 @@ class MyFlaskApp(Flask):
 
 app = MyFlaskApp(__name__)
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
+
 
 @app.route("/search")
 def search():
@@ -30,6 +94,12 @@ def search():
     if len(query) == 0:
       return jsonify(res)
     # BEGIN SOLUTION
+    tokens = tokenize(query)
+    scores = bm25_score(tokens)
+
+    ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:100]
+
+    res = [(str(doc_id), str(doc_id)) for doc_id, _ in ranked]
 
     # END SOLUTION
     return jsonify(res)

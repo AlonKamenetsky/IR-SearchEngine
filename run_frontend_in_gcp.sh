@@ -1,9 +1,9 @@
 INSTANCE_NAME="instance-1"
 REGION=us-central1
 ZONE=us-central1-c
-PROJECT_NAME="YOUR_PROJECT_NAME_HERE"
+PROJECT_NAME="assignment-3-480509"
 IP_NAME="$PROJECT_NAME-ip"
-GOOGLE_ACCOUNT_NAME="YOUR_ACCOUNT_NAME_HERE" # without the @post.bgu.ac.il or @gmail.com part
+GOOGLE_ACCOUNT_NAME="maimol" # without the @post.bgu.ac.il or @gmail.com part
 
 # 0. Install Cloud SDK on your local machine or using Could Shell
 # check that you have a proper active account listed
@@ -11,13 +11,14 @@ gcloud auth list
 # check that the right project and zone are active
 gcloud config list
 # if not set them
-# gcloud config set project $PROJECT_NAME
-# gcloud config set compute/zone $ZONE
+# gcloud config set project "assignment-3-480509"
+# gcloud config set compute/zone us-central1-c
 
 # 1. Set up public IP
 gcloud compute addresses create $IP_NAME --project=$PROJECT_NAME --region=$REGION
 gcloud compute addresses list
 # note the IP address printed above, that's your extrenal IP address.
+34.28.62.79
 INSTANCE_IP=$(gcloud compute addresses describe $IP_NAME --region=$REGION --format="get(address)")
 
 # 2. Create Firewall rule to allow traffic to port 8080 on the instance
@@ -52,13 +53,13 @@ gcloud compute scp ./search_frontend.py \
 gcloud compute ssh $GOOGLE_ACCOUNT_NAME@$INSTANCE_NAME --zone $ZONE
 
 # 6. Verify the enviroment is all set (run in the VM)
-# ~/venv/bin/python - << 'PY'
-# import flask, werkzeug, numpy, pandas
-# print("flask:", flask.__version__)
-# print("werkzeug:", werkzeug.__version__)
-# print("numpy:", numpy.__version__)
-# print("pandas:", pandas.__version__)
-# PY
+~/venv/bin/python - << 'PY'
+import flask, werkzeug, numpy, pandas
+print("flask:", flask.__version__)
+print("werkzeug:", werkzeug.__version__)
+print("numpy:", numpy.__version__)
+print("pandas:", pandas.__version__)
+PY
 
 # 7. Run the server
 nohup ~/venv/bin/python ~/search_frontend.py > ~/frontend.log 2>&1 &
@@ -71,7 +72,7 @@ curl "http://127.0.0.1:8080/search?query=hello"
 gcloud compute instances delete -q $INSTANCE_NAME
 # make sure there are no lingering instances
 gcloud compute instances list
-delete firewall rule
+# delete firewall rule
 gcloud compute firewall-rules delete -q default-allow-http-8080
-delete external addresses
+# delete external addresses
 gcloud compute addresses delete -q $IP_NAME --region $REGION
