@@ -7,7 +7,7 @@ GOOGLE_ACCOUNT_NAME="maimol" # without the @post.bgu.ac.il or @gmail.com part
 
 # 0. Install Cloud SDK on your local machine or using Could Shell
 # check that you have a proper active account listed
-gcloud auth list 
+gcloud auth list
 # check that the right project and zone are active
 gcloud config list
 # if not set them
@@ -37,8 +37,8 @@ gcloud compute instances create $INSTANCE_NAME \
 # monitor instance creation log using this command. When done (4-5 minutes) terminate using Ctrl+C
 gcloud compute instances tail-serial-port-output $INSTANCE_NAME --zone $ZONE
 
-# After Ctrl+C, run steps 4-8 manually. 
-# Depending on the way you ran this script, you may need to define again 
+# After Ctrl+C, run steps 4-8 manually.
+# Depending on the way you ran this script, you may need to define again
 # the variables from the top (INSTANCE_NAME, etc.) in the console.
 # Verify that the instance is running
 gcloud compute instances list --filter="name=$INSTANCE_NAME" --format="table(name,status,zone,EXTERNAL_IP)"
