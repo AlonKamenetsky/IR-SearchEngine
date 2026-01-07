@@ -42,7 +42,32 @@ N = sum(index.df.values())
 def tokenize(text):
     return re.findall(r"\w+", text.lower())
 
+# try number 1 - tf idf
+# =========================
+# TF-IDF SCORING
+# =========================
+def tfidf_score(query_tokens):
+    scores = defaultdict(float)
 
+    for term in query_tokens:
+        if term not in index.df:
+            continue
+
+        df = index.df[term]
+        idf = math.log(N / df)
+
+        posting_list = index.read_a_posting_list(
+            base_dir=BASE_DIR,
+            w=term,
+            bucket_name=BUCKET_NAME
+        )
+
+        for doc_id, tf in posting_list:
+            scores[doc_id] += tf * idf
+
+    return scores
+
+# try number 2 - BM25
 # =========================
 # BM25 SCORING
 # =========================
@@ -205,7 +230,7 @@ def search_anchor():
 
 @app.route("/get_pagerank", methods=['POST'])
 def get_pagerank():
-    ''' Returns PageRank values for a list of provided wiki article IDs. 
+    ''' Returns PageRank values for a list of provided wiki article IDs.
 
         Test this by issuing a POST request to a URL like:
           http://YOUR_SERVER_DOMAIN/get_pagerank
@@ -244,7 +269,7 @@ def get_pageview():
     Returns:
     --------
         list of ints:
-          list of page view numbers from August 2021 that correrspond to the 
+          list of page view numbers from August 2021 that correrspond to the
           provided list article IDs.
     '''
     res = []
